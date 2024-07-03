@@ -1,5 +1,5 @@
-mod io;
 mod record;
 mod util;
-pub use io::DataFile;
+mod io;
 pub use util::BarrilError;
+pub use io::DataFile;
