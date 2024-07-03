@@ -1,0 +1,57 @@
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+authors = ["lisper-bridge team"]
+
+[workspace.lints.rust]
+bare_trait_objects = "warn"
+elided_lifetimes_in_paths = "warn"
+ellipsis_inclusive_range_patterns = "warn"
+explicit_outlives_requirements = "warn"
+unused_extern_crates = "warn"
+unused_lifetimes = "warn"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+## lint groups
+complexity = { level = "warn", priority = -1 }
+correctness = { level = "deny", priority = -1 }
+perf = { level = "deny", priority = -1 }
+restriction = { level = "allow", priority = -1 }
+style = { level = "warn", priority = -1 }
+suspicious = { level = "warn", priority = -1 }
+
+## allow following lints
+# () makes a fine error in most cases
+result_unit_err = "allow"
+# We don't expose public APIs that matter like this
+len_without_is_empty = "allow"
+# We have macros that rely on this currently
+enum_variant_names = "allow"
+# Builder pattern disagrees
+new_ret_no_self = "allow"
+# Has a bunch of false positives
+useless_asref = "allow"
+# Has false positives
+assigning_clones = "allow"
+
+## warn at following lints
+# CI raises these to deny
+dbg_macro = "warn"
+todo = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
+rc_buffer = "warn"
+str_to_string = "warn"
+
+[workspace.dependencies]
+serde = { version = "1.0.203", features = ["derive"] }
+serde_json = "1.0.120"
+anyhow = "1.0.86"
+async-trait = "0.1.80"
+pin-project-lite = "0.2"
+barril = { path = "./crates/barril", version = "0.1.0" }
