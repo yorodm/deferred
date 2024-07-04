@@ -7,10 +7,7 @@ use futures_lite::{
     AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt, Future,
 };
 
-use crate::{
-    record::{Entry, Meta},
-    BarrilError,
-};
+use crate::{record::{Entry, KeyMap, Meta}, BarrilError};
 
 trait SeekReader: AsyncRead + AsyncSeek {}
 
@@ -107,4 +104,14 @@ impl DataFile {
             data: data_buffer.freeze(),
         })
     }
+
+    
+}
+
+pub async fn save_hints<P: AsRef<Path>>(key_map:&KeyMap , path: P) -> Result<(), BarrilError>{
+        todo!()
+}
+
+pub async fn load_hints<P: AsRef<Path>>(key_map:&KeyMap , path: P) -> Result<KeyMap, BarrilError>{
+    todo!()
 }
