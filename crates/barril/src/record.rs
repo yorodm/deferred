@@ -3,6 +3,8 @@ use bytes::{BufMut, Bytes, BytesMut};
 use hashbrown::HashMap;
 use crate::util::timestamp;
 
+use crate::BarrilError;
+
 // Metadata part
 #[derive(Debug)]
 pub struct Meta {
@@ -14,7 +16,6 @@ pub struct Meta {
 }
 
 impl From<Meta> for Bytes {
-
     fn from(value: Meta) -> Self {
         let mut buffer = BytesMut::zeroed(20);
         let crc = value.crc.to_be_bytes();
@@ -31,12 +32,13 @@ impl From<Meta> for Bytes {
     }
 }
 
-impl TryFrom<Vec<u8>> for Meta {
+impl TryFrom<Bytes> for Meta {
     type Error = crate::BarrilError;
 
-    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        if value.len() != 20 { // no header will be shorter than 20 bytes
-            return Err(crate::BarrilError::DataError)
+    fn try_from(value: Bytes) -> Result<Self, Self::Error> {
+        if value.len() != 20 {
+            // no header will be shorter than 20 bytes
+            return Err(crate::BarrilError::DataError);
         };
         todo!()
     }
@@ -45,9 +47,9 @@ impl TryFrom<Vec<u8>> for Meta {
 // Data part
 #[derive(Debug)]
 pub struct Entry {
-    pub (crate) meta: Meta,
-    pub (crate) key: String, // we might Cow here
-    pub (crate) data: Bytes
+    pub(crate) meta: Meta,
+    pub(crate) key: String, // we might Cow here
+    pub(crate) data: Bytes,
 }
 
 impl From<Entry> for Bytes {
@@ -82,74 +84,65 @@ impl Entry {
 }
 
 #[derive(Debug)]
-pub struct Key{
+pub struct Key {
     timestamp: u32,
     size: u32,
     position: u32,
     id: u32,
 }
 
-impl From<Key> for Vec<u8> {
-
-    fn from(value: Key) -> Self {
-        let timestamp = value.timestamp.to_be_bytes();
-        let size = value.size.to_be_bytes();
-        let position = value.position.to_be_bytes();
-        let id = value.id.to_be_bytes();
-        [timestamp,size,position,id].concat()
-    }
-}
-
-impl From<&Key> for Vec<u8> {
-
-    // Allocation?
+impl From<&Key> for Bytes {
     fn from(value: &Key) -> Self {
+        let mut buffer = BytesMut::new();
         let timestamp = value.timestamp.to_be_bytes();
         let size = value.size.to_be_bytes();
         let position = value.position.to_be_bytes();
         let id = value.id.to_be_bytes();
-        [timestamp,size,position,id].concat()
+        buffer.put_slice(&timestamp);
+        buffer.put_slice(&size);
+        buffer.put_slice(&position);
+        buffer.put_slice(&id);
+        buffer.freeze()
     }
 }
 
-impl TryFrom<Vec<u8>> for Key {
+impl TryFrom<Bytes> for Key {
     type Error = crate::BarrilError;
 
-    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        if value.len() != 20 { // no header will be shorter than 20 bytes
-            return Err(crate::BarrilError::DataError)
+    fn try_from(value: Bytes) -> Result<Self, Self::Error> {
+        if value.len() != 20 {
+            // no header will be shorter than 20 bytes
+            return Err(crate::BarrilError::DataError);
         };
         todo!()
     }
 }
 
 #[derive(Debug)]
-pub struct KeyMap(HashMap<String,Key>);
+pub struct KeyMap(HashMap<String, Key>);
 
-impl KeyMap {
-
+impl From<&KeyMap> for Bytes {
     // Keymap format:
     // |- key len |- key |- metadata len |- metadata
-    pub (crate) fn serialize(&self) -> Vec<u8> {
+    fn from(k: &KeyMap) -> Self {
         let mut buff = BytesMut::new();
         // TODO: Pulled this number out of my a**
-        buff.reserve(self.0.len() * 200);
+        buff.reserve(k.0.len() * 200);
         let mut writer = buff.writer();
-        for (k,v) in self.0.iter() {
+        for (k, v) in k.0.iter() {
             // BytesMut is Infallible
-            let serialized_key: Vec<u8> = v.into();
+            let serialized_key: Bytes = v.into();
             writer.write(&k.len().to_be_bytes()).unwrap();
             writer.write(k.as_bytes()).unwrap();
-            writer.write(&serialized_key.len().to_be_bytes()).unwrap();
             writer.write(&serialized_key).unwrap();
         }
-        writer.into_inner().to_vec()
+        writer.into_inner().freeze()
     }
-    
 }
 
-impl From<Vec<u8>> for KeyMap {
-    fn from(value: Vec<u8>) -> Self {
+impl TryFrom<Bytes> for KeyMap {
+    type Error = BarrilError;
+    fn try_from(value: Bytes) -> Result<KeyMap, Self::Error> {
         todo!()
     }
 }
