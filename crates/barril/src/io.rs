@@ -7,7 +7,10 @@ use futures_lite::{
     AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt, Future,
 };
 
-use crate::{record::{Entry, KeyMap, Meta}, BarrilError};
+use crate::{
+    record::{Entry, KeyMap, Meta},
+    BarrilError,
+};
 
 trait SeekReader: AsyncRead + AsyncSeek {}
 
@@ -19,7 +22,6 @@ pub struct DataFile {
     id: u32, // TODO: do we keep this here?
     offset: usize,
 }
-
 
 impl DataFile {
     pub fn new<P: AsRef<Path>>(
@@ -60,11 +62,11 @@ impl DataFile {
                     .write_all(&data)
                     .await
                     .map_err(|e| BarrilError::IoError(e))?;
-                self.offset = self.offset + data.len();
                 w.as_mut()
                     .flush()
                     .await
                     .map_err(|e| BarrilError::IoError(e))?;
+                self.offset = self.offset + data.len();
             }
             None => {
                 return Err(BarrilError::NoActiveData);
@@ -85,7 +87,7 @@ impl DataFile {
             .read_exact(&mut meta_buffer)
             .await
             .map_err(|e| BarrilError::IoError(e))?;
-        let meta: Meta = meta_buffer.to_vec().try_into()?;
+        let meta: Meta = meta_buffer.freeze().try_into()?;
         let mut key_buffer = BytesMut::new();
         self.reader
             .as_mut()
@@ -104,14 +106,12 @@ impl DataFile {
             data: data_buffer.freeze(),
         })
     }
-
-    
 }
 
-pub async fn save_hints<P: AsRef<Path>>(key_map:&KeyMap , path: P) -> Result<(), BarrilError>{
-        todo!()
+pub async fn save_hints<P: AsRef<Path>>(key_map: &KeyMap, path: P) -> Result<(), BarrilError> {
+    todo!()
 }
 
-pub async fn load_hints<P: AsRef<Path>>(key_map:&KeyMap , path: P) -> Result<KeyMap, BarrilError>{
+pub async fn load_hints<P: AsRef<Path>>(key_map: &KeyMap, path: P) -> Result<KeyMap, BarrilError> {
     todo!()
 }
