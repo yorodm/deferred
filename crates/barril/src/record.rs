@@ -1,20 +1,22 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use bytes::{BufMut, Bytes, BytesMut};
 
+use crate::util::timestamp;
 
 // Metadata part
 #[derive(Debug)]
 pub struct Meta {
-    pub (crate) crc: u32,
-    pub (crate) timestamp: u32,
-    pub (crate) expires: u32,
-    pub (crate) key_size: usize,
-    pub (crate) data_size: usize
+    pub(crate) crc: u32,
+    pub(crate) timestamp: i64,
+    pub(crate) expires: u32,
+    pub(crate) key_size: usize,
+    pub(crate) data_size: usize,
 }
 
 impl From<Meta> for Bytes {
-
     fn from(value: Meta) -> Self {
-        let mut buffer = BytesMut::zeroed(20);
+        let mut buffer = BytesMut::new();
         let crc = value.crc.to_be_bytes();
         let timestamp = value.timestamp.to_be_bytes();
         let expires = value.expires.to_be_bytes();
@@ -33,9 +35,6 @@ impl TryFrom<Vec<u8>> for Meta {
     type Error = crate::BarrilError;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        if value.len() != 20 { // no header will be shorter than 20 bytes
-            return Err(crate::BarrilError::DataError)
-        };
         todo!()
     }
 }
@@ -43,9 +42,9 @@ impl TryFrom<Vec<u8>> for Meta {
 // Data part
 #[derive(Debug)]
 pub struct Entry {
-    pub (crate) meta: Meta,
-    pub (crate) key: String, // we might Cow here
-    pub (crate) data: Bytes
+    pub(crate) meta: Meta,
+    pub(crate) key: String, // we might Cow here
+    pub(crate) data: Bytes,
 }
 
 impl From<Entry> for Bytes {
@@ -57,5 +56,24 @@ impl From<Entry> for Bytes {
         buffer.put(key);
         buffer.put(value.data);
         buffer.freeze()
+    }
+}
+
+const CKSUM: crc::Crc<u32> = crc::Crc::<u32>::new(&crc::CRC_32_CKSUM);
+
+impl Entry {
+    pub fn new(key: String, data: Bytes, expires: u32) -> Entry {
+        let meta = Meta {
+            data_size: data.len(),
+            key_size: key.len(),
+            expires: expires,
+           timestamp:  timestamp(),
+           crc: CKSUM.checksum(&data)
+        };
+        Entry {
+            meta,
+            data,
+            key
+        }
     }
 }

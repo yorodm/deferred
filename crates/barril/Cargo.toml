@@ -11,5 +11,11 @@ bytes = "1.6.0"
 futures-lite.workspace = true
 thiserror.workspace = true
 async-fs = "2.1.2"
+crc = "3.2.1"
+chrono = "0.4.38"
 [lints]
 workspace = true
+
+[dev-dependencies]
+smol = "2.0.0"
+smol-potat = "1.1.2"
