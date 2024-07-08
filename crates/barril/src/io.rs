@@ -1,7 +1,6 @@
 use std::{path::Path, pin::Pin};
 
 use async_fs::OpenOptions;
-use async_lock::Mutex;
 use bytes::{Bytes, BytesMut};
 use futures_lite::{
     io::{BufReader, BufWriter},
@@ -21,13 +20,10 @@ pub struct DataFile {
     reader: Pin<Box<dyn SeekReader + Sync + Send>>,
     writer: Option<Pin<Box<dyn AsyncWrite + Sync + Send>>>,
     offset: usize,
-    write_lock: Mutex<()> 
 }
 
 impl DataFile {
-    pub fn new<P: AsRef<Path>>(
-        path: P,
-    ) -> impl Future<Output = Result<Self, BarrilError>> {
+    pub fn new<P: AsRef<Path>>(path: P) -> impl Future<Output = Result<Self, BarrilError>> {
         let path = path.as_ref().to_owned();
         async move {
             let writer = OpenOptions::new()
@@ -45,11 +41,15 @@ impl DataFile {
                 reader: Box::pin(BufReader::new(reader)),
                 writer: Some(Box::pin(BufWriter::new(writer))),
                 offset: 0,
-                write_lock: Mutex::new(())
             })
         }
     }
-    pub async fn write(&mut self, key: String, data: Bytes, expires: u32) -> Result<(), BarrilError>  {
+    pub async fn write(
+        &mut self,
+        key: String,
+        data: Bytes,
+        expires: u32,
+    ) -> Result<(), BarrilError> {
         let entry = Entry::new(key, data, expires);
         self.write_entry(entry).await
     }
@@ -58,7 +58,6 @@ impl DataFile {
         let data: Bytes = entry.into();
         match &mut self.writer {
             Some(w) => {
-                let guard = self.write_lock.lock().await;
                 w.as_mut()
                     .write_all(&data)
                     .await
@@ -68,7 +67,6 @@ impl DataFile {
                     .await
                     .map_err(|e| BarrilError::IoError(e))?;
                 self.offset = self.offset + data.len(); // Only move the offset if we succeeded w
-                drop(guard);
             }
             None => {
                 return Err(BarrilError::NoActiveData);
@@ -110,10 +108,16 @@ impl DataFile {
     }
 }
 
-pub async fn save_hints<P: AsRef<Path>>(key_map: &KeyMap, path: P) -> Result<(), BarrilError> {
+pub(crate) async fn save_hints<P: AsRef<Path>>(
+    key_map: &KeyMap,
+    path: P,
+) -> Result<(), BarrilError> {
     todo!()
 }
 
-pub async fn load_hints<P: AsRef<Path>>(key_map: &KeyMap, path: P) -> Result<KeyMap, BarrilError> {
+pub(crate) async fn load_hints<P: AsRef<Path>>(
+    key_map: &KeyMap,
+    path: P,
+) -> Result<KeyMap, BarrilError> {
     todo!()
 }

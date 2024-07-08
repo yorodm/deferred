@@ -1,18 +1,19 @@
-use std::io::Write;
-use bytes::{BufMut, Bytes, BytesMut};
-use hashbrown::HashMap;
 use crate::util::timestamp;
+use bytes::{Buf, BufMut, Bytes, BytesMut};
+use hashbrown::HashMap;
+use std::io::{Read, Write};
+use std::mem::size_of;
 
 use crate::BarrilError;
 
 // Metadata part
 #[derive(Debug)]
 pub struct Meta {
-    pub (crate) crc: u32,
-    pub (crate) timestamp: i64,
-    pub (crate) expires: u32,
-    pub (crate) key_size: usize,
-    pub (crate) data_size: usize
+    pub(crate) crc: u32,
+    pub(crate) timestamp: i64,
+    pub(crate) expires: u32,
+    pub(crate) key_size: usize,
+    pub(crate) data_size: usize,
 }
 
 impl From<Meta> for Bytes {
@@ -72,27 +73,23 @@ impl Entry {
             data_size: data.len(),
             key_size: key.len(),
             expires: expires,
-           timestamp:  timestamp(),
-           crc: CKSUM.checksum(&data)
+            timestamp: timestamp(),
+            crc: CKSUM.checksum(&data),
         };
-        Entry {
-            meta,
-            data,
-            key
-        }
+        Entry { meta, data, key }
     }
 }
 
 #[derive(Debug)]
-pub struct Key {
+pub struct KeyMeta {
     timestamp: u32,
     size: u32,
-    position: u32,
+    position: usize,
     id: u32,
 }
 
-impl From<&Key> for Bytes {
-    fn from(value: &Key) -> Self {
+impl From<&KeyMeta> for Bytes {
+    fn from(value: &KeyMeta) -> Self {
         let mut buffer = BytesMut::new();
         let timestamp = value.timestamp.to_be_bytes();
         let size = value.size.to_be_bytes();
@@ -106,35 +103,30 @@ impl From<&Key> for Bytes {
     }
 }
 
-impl TryFrom<Bytes> for Key {
+impl TryFrom<Bytes> for KeyMeta {
     type Error = crate::BarrilError;
 
-    fn try_from(value: Bytes) -> Result<Self, Self::Error> {
-        if value.len() != 20 {
-            // no header will be shorter than 20 bytes
-            return Err(crate::BarrilError::DataError);
-        };
+    fn try_from(_: Bytes) -> Result<Self, Self::Error> {
         todo!()
     }
 }
 
 #[derive(Debug)]
-pub struct KeyMap(HashMap<String, Key>);
+pub struct KeyMap(HashMap<String, KeyMeta>); //impl DerefMut?
 
 impl From<&KeyMap> for Bytes {
     // Keymap format:
-    // |- key len |- key |- metadata len |- metadata
-    fn from(k: &KeyMap) -> Self {
-        let mut buff = BytesMut::new();
-        // TODO: Pulled this number out of my a**
-        buff.reserve(k.0.len() * 200);
+    // |- key len |- key
+    fn from(map: &KeyMap) -> Self {
+        let buff = BytesMut::new();
         let mut writer = buff.writer();
-        for (k, v) in k.0.iter() {
+        writer.write(&map.0.len().to_be_bytes()).unwrap();
+        for (k, v) in map.0.iter() {
             // BytesMut is Infallible
-            let serialized_key: Bytes = v.into();
+            let meta: Bytes = v.into();
             writer.write(&k.len().to_be_bytes()).unwrap();
             writer.write(k.as_bytes()).unwrap();
-            writer.write(&serialized_key).unwrap();
+            writer.write(&meta).unwrap();
         }
         writer.into_inner().freeze()
     }
@@ -143,6 +135,29 @@ impl From<&KeyMap> for Bytes {
 impl TryFrom<Bytes> for KeyMap {
     type Error = BarrilError;
     fn try_from(value: Bytes) -> Result<KeyMap, Self::Error> {
-        todo!()
+        let mut hash = hashbrown::HashMap::new();
+        let mut reader = value.reader();
+        let mut map_size: [u8; size_of::<usize>()] = [0; size_of::<usize>()];
+        reader
+            .read_exact(&mut map_size)
+            .map_err(|_| BarrilError::DataError)?;
+        for _ in 1..usize::from_be_bytes(map_size) {
+            let mut key_size: [u8; size_of::<usize>()] = [0; size_of::<usize>()];
+            reader
+                .read_exact(&mut key_size)
+                .map_err(|_| BarrilError::DataError)?;
+            let mut key_buf = vec![0u8; usize::from_be_bytes(key_size)];
+            reader
+                .read_exact(&mut key_buf)
+                .map_err(|_| BarrilError::DataError)?;
+            let key_value = String::from_utf8(key_buf).map_err(|_| BarrilError::DataError)?;
+            let mut meta_buf = vec![0u8; 24]; // size of KeyMeta
+            reader
+                .read_exact(&mut meta_buf)
+                .map_err(|_| BarrilError::DataError)?;
+            let key_meta: KeyMeta = Bytes::from(meta_buf).try_into()?;
+            hash.insert(key_value, key_meta);
+        }
+        Ok(KeyMap(hash))
     }
 }

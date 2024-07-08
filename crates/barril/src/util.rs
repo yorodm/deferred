@@ -12,6 +12,8 @@ pub enum BarrilError {
     NoActiveData,
 }
 
-pub (crate) fn timestamp() -> i64 {
-    chrono::Local::now().timestamp_nanos_opt().expect("Could not get timestamp!")
+pub(crate) fn timestamp() -> i64 {
+    chrono::Local::now()
+        .timestamp_nanos_opt()
+        .expect("Could not get timestamp!")
 }
