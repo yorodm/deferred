@@ -1,6 +1,7 @@
 use std::{path::Path, pin::Pin};
 
 use async_fs::OpenOptions;
+use async_lock::Mutex;
 use bytes::{Bytes, BytesMut};
 use futures_lite::{
     io::{BufReader, BufWriter},
@@ -19,13 +20,12 @@ impl<T> SeekReader for T where T: AsyncRead + AsyncSeek {}
 pub struct DataFile {
     reader: Pin<Box<dyn SeekReader + Sync + Send>>,
     writer: Option<Pin<Box<dyn AsyncWrite + Sync + Send>>>,
-    id: u32, // TODO: do we keep this here?
     offset: usize,
+    write_lock: Mutex<()> 
 }
 
 impl DataFile {
     pub fn new<P: AsRef<Path>>(
-        id: u32,
         path: P,
     ) -> impl Future<Output = Result<Self, BarrilError>> {
         let path = path.as_ref().to_owned();
@@ -44,8 +44,8 @@ impl DataFile {
             Ok(DataFile {
                 reader: Box::pin(BufReader::new(reader)),
                 writer: Some(Box::pin(BufWriter::new(writer))),
-                id,
                 offset: 0,
+                write_lock: Mutex::new(())
             })
         }
     }
@@ -58,6 +58,7 @@ impl DataFile {
         let data: Bytes = entry.into();
         match &mut self.writer {
             Some(w) => {
+                let guard = self.write_lock.lock().await;
                 w.as_mut()
                     .write_all(&data)
                     .await
@@ -66,7 +67,8 @@ impl DataFile {
                     .flush()
                     .await
                     .map_err(|e| BarrilError::IoError(e))?;
-                self.offset = self.offset + data.len();
+                self.offset = self.offset + data.len(); // Only move the offset if we succeeded w
+                drop(guard);
             }
             None => {
                 return Err(BarrilError::NoActiveData);
