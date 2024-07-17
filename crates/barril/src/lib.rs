@@ -1,3 +1,7 @@
+//! Barril
+//! 
+//! `barril` is a simple implementation of [bitcask](https://github.com/basho/bitcask) using
+//! `async` to perform I/O operations
 mod engine;
 mod io;
 mod record;
