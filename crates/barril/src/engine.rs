@@ -1,9 +1,10 @@
+use async_lock::Mutex;
 use bytes::Bytes;
 
 use crate::{record::KeyMap, BarrilError, DataFile};
 
 pub struct Engine {
-    active_data: DataFile,
+    active_data: Mutex<DataFile>, // duh
     old_data: Vec<DataFile>,
     key_map: KeyMap,
 }

@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, path::PathBuf};
 
 use thiserror::Error;
 
@@ -10,6 +10,8 @@ pub enum BarrilError {
     IoError(#[from] io::Error),
     #[error("This data file is not active and cannot be used for writing")]
     NoActiveData,
+    #[error("Error processing file: {0}")]
+    WrongPath(PathBuf),
 }
 
 pub(crate) fn timestamp() -> i64 {

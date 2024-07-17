@@ -7,10 +7,13 @@ use futures_lite::{
     AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt, Future,
 };
 
+static EXT: &str = "brl";
+
 use crate::{
     record::{Entry, KeyMap, Meta},
     BarrilError,
 };
+
 
 trait SeekReader: AsyncRead + AsyncSeek {}
 
@@ -20,12 +23,33 @@ pub struct DataFile {
     reader: Pin<Box<dyn SeekReader + Sync + Send>>,
     writer: Option<Pin<Box<dyn AsyncWrite + Sync + Send>>>,
     offset: usize,
+    file_id: u32
 }
 
 impl DataFile {
-    pub fn new<P: AsRef<Path>>(path: P) -> impl Future<Output = Result<Self, BarrilError>> {
-        let path = path.as_ref().to_owned();
-        async move {
+
+    pub async fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, BarrilError> {
+        match path.as_ref().file_name() {
+            Some(name) => {
+                let str_name  = name.to_str()
+                .ok_or(BarrilError::WrongPath(path.as_ref().to_owned()))?;
+                let parts: Vec<&str>= str_name.split("_").collect();
+                let id: u32 = parts[1].parse().map_err(|_| BarrilError::WrongPath(path.as_ref().to_owned()))?; // extract from file name
+                DataFile::open(path, id).await
+            },
+            None => {
+                Err(BarrilError::WrongPath(path.as_ref().to_owned()))
+            },
+        }
+    }
+
+    pub fn new<P: AsRef<Path>>(path: P, name: &str, id: u32) -> impl Future<Output = Result<Self, BarrilError>> {
+        let file_name = format!("{}_{}.{}",name,id,EXT);
+        let path = path.as_ref().to_owned().join(file_name);
+        DataFile::open(path, id)
+    }
+
+    async fn open<P: AsRef<Path>>(path: P, id: u32) -> Result<DataFile, BarrilError> {
             let writer = OpenOptions::new()
                 .append(true)
                 .create(true)
@@ -41,9 +65,10 @@ impl DataFile {
                 reader: Box::pin(BufReader::new(reader)),
                 writer: Some(Box::pin(BufWriter::new(writer))),
                 offset: 0,
+                file_id: id
             })
-        }
     }
+
     pub async fn write(
         &mut self,
         key: String,
@@ -105,6 +130,17 @@ impl DataFile {
             key: String::from_utf8_lossy(&key_buffer).into_owned(),
             data: data_buffer.freeze(),
         })
+    }
+    
+    pub async fn close(&mut self) -> Result<(), BarrilError> {
+        match &mut self.writer.take() {
+            Some(w) => w
+                .as_mut()
+                .close()
+                .await
+                .map_err(|e| BarrilError::IoError(e)),
+            None => Ok(()),
+        }
     }
 }
 
