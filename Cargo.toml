@@ -15,6 +15,8 @@ explicit_outlives_requirements = "warn"
 unused_extern_crates = "warn"
 unused_lifetimes = "warn"
 unreachable_pub = "warn"
+missing_docs = "warn"
+
 
 [workspace.lints.clippy]
 ## lint groups
